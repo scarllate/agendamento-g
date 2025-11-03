@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Agendamento de Estúdio</title>
+    <!-- Carrega Tailwind CSS para estilização responsiva e moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define a fonte Inter e fallback para sans-serif */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f4f7;
+        }
+        /* Estilos personalizados para o layout mobile */
+        .container-app {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alinhamento superior no mobile */
+            padding: 1rem;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1.5rem; /* Cantos bem arredondados */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            padding: 1.5rem;
+            margin-top: 2rem; /* Espaço para centralizar melhor */
+        }
+        input[type="date"] {
+            appearance: none;
+            -webkit-appearance: none;
+            padding: 0.75rem;
+            border: 2px solid #ddd;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            text-align: center;
+        }
+        /* Estilos da Tabela de Admin */
+        .admin-table th, .admin-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .admin-table th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: #4b5563;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            position: sticky; /* Mantém o cabeçalho fixo na tabela */
+            top: 0;
+            z-index: 10;
+        }
+        .admin-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container-app">
+        <div class="card">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4 text-center">Estúdio de Gravação</h1>
+            <p id="auth-status" class="text-xs text-center mb-4 text-gray-500"></p>
+
+            <!-- MENU DE NAVEGAÇÃO (ABAS) -->
+            <div class="flex border-b border-gray-200 mb-6">
+                <button id="nav-client" data-view="client" class="tab-button w-1/2 py-3 text-sm font-medium transition duration-150 border-b-4 border-indigo-600 text-indigo-600">
+                    Agendamento (Cliente)
+                </button>
+                <button id="nav-admin" data-view="admin_login" class="tab-button w-1/2 py-3 text-sm font-medium transition duration-150 border-b-4 border-transparent text-gray-500 hover:text-gray-700">
+                    Admin
+                </button>
+            </div>
+
+            <!-- MENSAGENS DE STATUS -->
+            <div id="message-area" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
+            <div id="loading-spinner" class="text-center text-indigo-600 hidden">
+                <svg class="animate-spin h-6 w-6 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+
+            <!-- CONTEÚDO PRINCIPAL (Troca de Visualizações) -->
+            <div id="main-content-area" class="min-h-[300px]">
+
+                <!-- 1. VISUALIZAÇÃO DO CLIENTE (client-view) -->
+                <div id="client-view-section" class="view-section">
+                    <!-- SELETOR DE DATA -->
+                    <div class="mb-6">
+                        <label for="date-selector" class="block text-sm font-medium text-gray-700 mb-2">Selecione a Data para Agendar:</label>
+                        <input type="date" id="date-selector" class="w-full transition duration-150 ease-in-out focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <!-- VISUALIZAÇÃO DOS HORÁRIOS -->
+                    <h2 id="slots-title" class="text-xl font-semibold text-gray-800 mb-4"></h2>
+                    <div id="slots-container" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                        <!-- Horários serão injetados aqui via JS -->
+                    </div>
+
+                    <!-- FORMULÁRIO DE AGENDAMENTO -->
+                    <div id="booking-form-section" class="border-t pt-4 mt-4 hidden">
+                        <h3 class="text-lg font-medium text-indigo-600 mb-4">Agendar Horário: <span id="selected-slot-display" class="font-bold"></span></h3>
+
+                        <form id="booking-form" class="space-y-3">
+                            <div>
+                                <input type="text" id="client-name" placeholder="Seu Nome Completo" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <input type="text" id="client-contact" placeholder="Seu Contato (Telefone ou E-mail)" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <button type="submit" id="schedule-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg hover:shadow-xl disabled:bg-indigo-400">
+                                Confirmar Agendamento
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 2. VISUALIZAÇÃO DE LOGIN ADMIN (admin_login-view) -->
+                <div id="admin-login-section" class="view-section hidden">
+                    <h2 class="text-xl font-semibold text-indigo-600 mb-3">Acesso Administrativo</h2>
+                    <input type="password" id="admin-password" placeholder="Senha do Administrador" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-3">
+                    <button id="admin-login-button" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg">
+                        Entrar como Admin
+                    </button>
+                </div>
+
+                <!-- 3. VISUALIZAÇÃO DE DADOS ADMIN (admin_data-view) -->
+                <div id="admin-data-section" class="view-section hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-red-600">PAINEL DE ADMINISTRAÇÃO</h2>
+                        <button id="admin-logout-button" class="text-sm text-gray-500 hover:text-gray-700 py-1 px-3 bg-gray-100 rounded-lg">
+                            Sair
+                        </button>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Todos os Agendamentos (Tempo Real)</h3>
+                    
+                    <div class="overflow-x-auto overflow-y-auto max-h-[400px] rounded-lg border">
+                        <table class="min-w-full admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Horário</th>
+                                    <th>Cliente</th>
+                                    <th>Contato</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-bookings-list">
+                                <!-- Lista de agendamentos injetada aqui via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <p id="admin-count" class="text-sm text-gray-500 mt-3"></p>
+                </div>
+
+            </div>
+            
+            <p class="text-xs text-center mt-6 text-gray-400">ID de Sessão: <span id="user-id-display">Carregando...</span></p>
+
+        </div>
+    </div>
+
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, where, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais de ambiente (MANDATÓRIAS)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- CONFIGURAÇÃO ADMIN ---
+        // *** IMPORTANTE: MUDAR ESTA SENHA ANTES DE PUBLICAR! ***
+        const ADMIN_PASSWORD = "adminseguro"; 
+        // -------------------------
+
+        // Variáveis de estado do App
+        let app, db, auth;
+        let userId = 'anon';
+        let selectedDate = new Date().toISOString().split('T')[0];
+        let selectedTimeSlot = null;
+        let currentBookings = [];
+        let unsubscribeClient = null;
+        let unsubscribeAdmin = null;
+        let currentView = 'client'; // Estado de visualização padrão
+
+        // Horários de gravação disponíveis (1 hora por slot)
+        const ALL_SLOTS = [
+            "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00",
+            "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00",
+            "17:00 - 18:00"
+        ];
+        
+        // Elementos do DOM
+        const dateSelector = document.getElementById('date-selector');
+        const slotsTitle = document.getElementById('slots-title');
+        const slotsContainer = document.getElementById('slots-container');
+        const bookingFormSection = document.getElementById('booking-form-section');
+        const bookingForm = document.getElementById('booking-form');
+        const messageArea = document.getElementById('message-area');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const authStatus = document.getElementById('auth-status');
+        const selectedSlotDisplay = document.getElementById('selected-slot-display');
+        
+        // Elementos do Admin
+        const adminLoginSection = document.getElementById('admin-login-section');
+        const adminPasswordInput = document.getElementById('admin-password');
+        const adminLoginButton = document.getElementById('admin-login-button');
+        const clientViewSection = document.getElementById('client-view-section');
+        const adminDataSection = document.getElementById('admin-data-section');
+        const adminBookingsList = document.getElementById('admin-bookings-list');
+        const adminCount = document.getElementById('admin-count');
+        const adminLogoutButton = document.getElementById('admin-logout-button');
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+
+        // --- FUNÇÕES UTILITÁRIAS ---
+
+        // Helper para exibir mensagens
+        function showMessage(message, type = 'success') {
+            messageArea.textContent = message;
+            messageArea.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            
+            if (type === 'error') {
+                messageArea.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                messageArea.classList.add('bg-green-100', 'text-green-700');
+            }
+
+            setTimeout(() => {
+                messageArea.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Formata a data para exibição (DD/MM/YYYY)
+        function formatDateDisplay(dateString) {
+            if (!dateString) return 'Data Inválida';
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        // --- FIREBASE E AUTENTICAÇÃO ---
+
+        async function initFirebase() {
+            try {
+                // Habilita logs de debug (ajuda em caso de problemas)
+                setLogLevel('debug');
+                
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        authStatus.textContent = "Status: Autenticado";
+                        // Configura a visualização inicial
+                        dateSelector.value = selectedDate;
+                        dateSelector.min = selectedDate;
+                        renderView(currentView); // Renderiza a view inicial após autenticação
+                    } else {
+                        // Se não houver token, tenta o login anônimo
+                        if (!initialAuthToken) {
+                             await signInAnonymously(auth);
+                        }
+                        // Gera um ID aleatório se a autenticação falhar
+                        userId = auth.currentUser?.uid || crypto.randomUUID();
+                        userIdDisplay.textContent = userId;
+                        authStatus.textContent = "Status: Anônimo";
+                        renderView(currentView);
+                    }
+                });
+
+                // Tenta autenticar com o token personalizado (se disponível)
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                     // Tenta entrar anonimamente para ter um UID
+                     await signInAnonymously(auth);
+                }
+
+            } catch (error) {
+                console.error("Erro ao inicializar ou autenticar no Firebase:", error);
+                showMessage("Erro de conexão com o servidor. Tente novamente.", 'error');
+            }
+        }
+
+
+        // --- LÓGICA DE VISUALIZAÇÃO E ABAS ---
+        
+        // Controla qual seção está visível e qual listener do Firestore está ativo
+        function renderView(view) {
+            currentView = view;
+            
+            // 1. Gerencia os Listeners do Firestore
+            if (unsubscribeClient) { unsubscribeClient(); unsubscribeClient = null; }
+            if (unsubscribeAdmin) { unsubscribeAdmin(); unsubscribeAdmin = null; }
+
+            // 2. Gerencia a Visibilidade das Seções
+            const allSections = [clientViewSection, adminLoginSection, adminDataSection];
+            allSections.forEach(sec => sec.classList.add('hidden'));
+
+            if (currentView === 'client') {
+                clientViewSection.classList.remove('hidden');
+                loadClientBookings(selectedDate);
+            } else if (currentView === 'admin_login') {
+                adminLoginSection.classList.remove('hidden');
+            } else if (currentView === 'admin_data') {
+                adminDataSection.classList.remove('hidden');
+                loadAllBookingsForAdmin();
+            }
+
+            // 3. Gerencia o Destaque do Menu
+            tabButtons.forEach(btn => {
+                btn.classList.remove('border-indigo-600', 'text-indigo-600');
+                btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
+            });
+
+            // Decide qual aba deve ser destacada (Admin ou Cliente)
+            const activeTabId = currentView.startsWith('admin') ? 'nav-admin' : 'nav-client';
+            const activeTab = document.getElementById(activeTabId);
+            if (activeTab) {
+                activeTab.classList.remove('border-transparent', 'text-gray-500');
+                activeTab.classList.add('border-indigo-600', 'text-indigo-600');
+            }
+        }
+
+        // --- LÓGICA ADMIN ---
+
+        function handleAdminLogin() {
+            const enteredPassword = adminPasswordInput.value;
+            if (enteredPassword === ADMIN_PASSWORD) {
+                renderView('admin_data');
+                showMessage("Login de Administrador bem-sucedido!", 'success');
+                adminPasswordInput.value = '';
+            } else {
+                showMessage("Senha incorreta. Tente novamente.", 'error');
+            }
+        }
+
+        function handleAdminLogout() {
+            renderView('admin_login');
+            showMessage("Sessão de Administrador encerrada.", 'success');
+        }
+
+        // --- FIREBASE FIRESTORE E LÓGICA DE DADOS ---
+
+        // Retorna a referência da coleção pública de agendamentos
+        function getSchedulesCollection() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'studio_schedules');
+        }
+
+        // CARREGA AGENDAMENTOS PARA VISUALIZAÇÃO DO CLIENTE (apenas para a data selecionada)
+        function loadClientBookings(date) {
+            if (!db) return; 
+
+            loadingSpinner.classList.remove('hidden');
+
+            const schedulesRef = getSchedulesCollection();
+            const q = query(schedulesRef, where("date", "==", date));
+
+            // Usa onSnapshot para obter atualizações em tempo real
+            unsubscribeClient = onSnapshot(q, (snapshot) => {
+                currentBookings = [];
+                snapshot.forEach((doc) => {
+                    // Armazena apenas o horário para facilitar a verificação de disponibilidade
+                    currentBookings.push(doc.data().timeSlot); 
+                });
+                
+                renderSlots(currentBookings);
+                loadingSpinner.classList.add('hidden');
+
+            }, (error) => {
+                console.error("Erro ao carregar agendamentos em tempo real:", error);
+                showMessage("Erro ao carregar dados do agendamento.", 'error');
+                loadingSpinner.classList.add('hidden');
+            });
+        }
+
+        // CARREGA TODOS OS AGENDAMENTOS PARA O ADMIN (todas as datas)
+        function loadAllBookingsForAdmin() {
+            if (!db) return;
+
+            loadingSpinner.classList.remove('hidden');
+            const schedulesRef = getSchedulesCollection();
+            const q = query(schedulesRef); 
+
+            // Usa onSnapshot para o painel de admin em tempo real
+            unsubscribeAdmin = onSnapshot(q, (snapshot) => {
+                const allBookings = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    allBookings.push({ ...data, id: doc.id });
+                });
+                
+                // Ordena os agendamentos na memória (data, depois horário)
+                allBookings.sort((a, b) => {
+                    // Trata datas inválidas ou nulas, assumindo que 'date' é YYYY-MM-DD
+                    const dateA = new Date(a.date || '1970-01-01');
+                    const dateB = new Date(b.date || '1970-01-01');
+                    if (dateA - dateB !== 0) {
+                        return dateA - dateB;
+                    }
+                    return (a.timeSlot || '').localeCompare(b.timeSlot || '');
+                });
+
+                renderAdminTable(allBookings);
+                loadingSpinner.classList.add('hidden');
+
+            }, (error) => {
+                console.error("Erro ao carregar dados do admin:", error);
+                showMessage("Erro ao carregar painel de administração.", 'error');
+                loadingSpinner.classList.add('hidden');
+            });
+        }
+        
+        // RENDERIZA A TABELA DE ADMIN
+        function renderAdminTable(bookings) {
+            adminBookingsList.innerHTML = '';
+            adminCount.textContent = `Total de Agendamentos: ${bookings.length}`;
+
+            if (bookings.length === 0) {
+                adminBookingsList.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Nenhum agendamento encontrado.</td></tr>';
+                return;
+            }
+
+            bookings.forEach(booking => {
+                const row = document.createElement('tr');
+                const formattedDate = formatDateDisplay(booking.date);
+                
+                row.innerHTML = `
+                    <td>${formattedDate}</td>
+                    <td>${booking.timeSlot}</td>
+                    <td>${booking.clientName}</td>
+                    <td>${booking.clientContact}</td>
+                `;
+                adminBookingsList.appendChild(row);
+            });
+        }
+
+        // Renderiza os botões de horário (CLIENTE)
+        function renderSlots(bookedSlots) {
+            slotsContainer.innerHTML = '';
+            slotsTitle.textContent = `Horários Disponíveis para ${formatDateDisplay(selectedDate)}`;
+            bookingFormSection.classList.add('hidden');
+            selectedTimeSlot = null;
+            selectedSlotDisplay.textContent = '';
+            
+            // Lógica para desabilitar datas passadas
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const selected = new Date(selectedDate);
+            selected.setHours(0, 0, 0, 0);
+
+            ALL_SLOTS.forEach(slot => {
+                const isBooked = bookedSlots.includes(slot);
+                const button = document.createElement('button');
+                
+                button.textContent = slot;
+                button.classList.add('p-3', 'rounded-xl', 'text-sm', 'font-medium', 'transition', 'duration-200', 'shadow-lg');
+
+                if (selected < today) {
+                    // Data no passado
+                    button.classList.add('bg-gray-300', 'text-gray-600', 'cursor-not-allowed', 'opacity-70');
+                    button.disabled = true;
+                } else if (isBooked) {
+                    // Horário agendado
+                    button.classList.add('bg-red-500', 'text-white', 'cursor-not-allowed');
+                    button.textContent = 'AGENDADO';
+                    button.disabled = true;
+                } else {
+                    // Horário disponível
+                    button.classList.add('bg-green-500', 'text-white', 'hover:bg-green-600');
+                    button.onclick = () => selectSlot(slot, button);
+                }
+
+                slotsContainer.appendChild(button);
+            });
+        }
+        
+        // --- INTERAÇÃO DO USUÁRIO CLIENTE ---
+
+        // Seleciona o slot e destaca o botão
+        function selectSlot(slot, buttonElement) {
+            // Remove o destaque dos outros botões
+            document.querySelectorAll('#slots-container button').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-indigo-300');
+            });
+
+            // Adiciona destaque ao botão selecionado
+            buttonElement.classList.add('ring-4', 'ring-indigo-300');
+            
+            selectedTimeSlot = slot;
+            selectedSlotDisplay.textContent = slot;
+            bookingFormSection.classList.remove('hidden');
+        }
+
+        // Lida com o envio do formulário de agendamento
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            if (!selectedTimeSlot) {
+                showMessage("Por favor, selecione um horário primeiro.", 'error');
+                return;
+            }
+
+            const clientName = document.getElementById('client-name').value.trim();
+            const clientContact = document.getElementById('client-contact').value.trim();
+            const scheduleButton = document.getElementById('schedule-button');
+
+            if (!clientName || !clientContact) {
+                showMessage("Por favor, preencha seu nome e contato.", 'error');
+                return;
+            }
+
+            scheduleButton.disabled = true;
+            scheduleButton.textContent = 'Agendando...';
+
+            // Verificação de segurança final
+            if (currentBookings.includes(selectedTimeSlot)) {
+                showMessage("Oops! Este horário foi agendado por outro cliente. Por favor, escolha outro.", 'error');
+                scheduleButton.disabled = false;
+                scheduleButton.textContent = 'Confirmar Agendamento';
+                return;
+            }
+
+            try {
+                // Adiciona o novo agendamento ao Firestore (Coleção Pública)
+                const newBooking = {
+                    date: selectedDate,
+                    timeSlot: selectedTimeSlot,
+                    clientName: clientName,
+                    clientContact: clientContact,
+                    userId: userId,
+                    timestamp: new Date().toISOString()
+                };
+
+                await addDoc(getSchedulesCollection(), newBooking);
+
+                // Limpa e esconde o formulário
+                bookingForm.reset();
+                bookingFormSection.classList.add('hidden');
+                selectedTimeSlot = null;
+                showMessage("Agendamento realizado com sucesso! Aguarde a confirmação.", 'success');
+                
+            } catch (error) {
+                console.error("Erro ao agendar horário:", error);
+                showMessage("Falha ao agendar: " + error.message, 'error');
+            } finally {
+                scheduleButton.disabled = false;
+                scheduleButton.textContent = 'Confirmar Agendamento';
+            }
+        }
+        
+        // --- LISTENERS DE EVENTOS ---
+
+        // Listener para mudança de data (apenas na visualização do cliente)
+        dateSelector.addEventListener('change', (e) => {
+            selectedDate = e.target.value;
+            if (currentView === 'client') {
+                loadClientBookings(selectedDate);
+            }
+        });
+
+        // Listener para envio do formulário (cliente)
+        bookingForm.addEventListener('submit', handleFormSubmit);
+
+        // Listener para login admin
+        adminLoginButton.addEventListener('click', handleAdminLogin);
+        adminPasswordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleAdminLogin();
+            }
+        });
+        
+        // Listener para logout admin
+        adminLogoutButton.addEventListener('click', handleAdminLogout);
+
+        // Listener para botões de navegação (abas)
+        document.getElementById('nav-client').addEventListener('click', () => renderView('client'));
+        document.getElementById('nav-admin').addEventListener('click', () => {
+            // Se já está logado como admin, vai direto para os dados, senão, para a tela de login
+            if (currentView === 'admin_data') {
+                renderView('admin_data');
+            } else {
+                renderView('admin_login');
+            }
+        });
+
+
+        // --- INICIALIZAÇÃO ---
+        window.onload = initFirebase;
+
+    </script>
+</body>
+</html>
+
